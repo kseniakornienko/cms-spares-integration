@@ -1,0 +1,255 @@
+{
+  "name": "Синхронизация CMS (Корниенко)",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        80
+      ],
+      "id": "9e55e289-7a70-4e18-a84e-62981c7f257b",
+      "name": "Ручной запуск синхронизации"
+    },
+    {
+      "parameters": {
+        "url": "http://77.67.89.207:8080/cms/spares",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "size",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "page",
+                    "value": "={{ $pageCount }}"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -400,
+        80
+      ],
+      "id": "6938129d-52e8-4d61-83a5-3e6e99f206da",
+      "name": "Получение деталей из CMS",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "h3NiHCxOT46HY4rw",
+          "name": "Авторизация CMS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": {
+          "__rl": true,
+          "value": "spares",
+          "mode": "list",
+          "cachedResultName": "spares"
+        },
+        "columnToMatchOn": "spareCode",
+        "options": {}
+      },
+      "type": "n8n-nodes-sqlite3-experimental.sqliteNode",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        80
+      ],
+      "id": "8521c595-9da3-4ad6-a65e-fbbfd0d7432f",
+      "name": "Сохранение деталей в SQLite",
+      "credentials": {
+        "sqliteCredentialsApi": {
+          "id": "s0zPPGerTD1UuiPO",
+          "name": "Учебная база SQLite"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "spares",
+          "mode": "list",
+          "cachedResultName": "spares"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-sqlite3-experimental.sqliteNode",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        80
+      ],
+      "id": "ba2cbcae-d5ad-4536-82ff-fc8935064b10",
+      "name": "Получение истории из SQLite",
+      "executeOnce": true,
+      "credentials": {
+        "sqliteCredentialsApi": {
+          "id": "s0zPPGerTD1UuiPO",
+          "name": "Учебная база SQLite"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const columns = [\n  'spareCode',\n  'spareName',\n  'spareDescription',\n  'spareType',\n  'spareStatus',\n  'price',\n  'quantity',\n  'updatedAt',\n];\n\nfunction escapeCsv(value) {\n  if (value === null || value === undefined) {\n    return '';\n  }\n\n  const text = String(value);\n\n  if (/[;\"\\r\\n]/.test(text)) {\n    return `\"${text.replace(/\"/g, '\"\"')}\"`;\n  }\n\n  return text;\n}\n\nconst csv = $input\n  .all()\n  .map(item =>\n    columns\n      .map(column => escapeCsv(item.json[column]))\n      .join(';')\n  )\n  .join('\\r\\n');\n\nreturn [\n  {\n    json: {\n      csv,\n      rowCount: $input.all().length,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        80
+      ],
+      "id": "27efa92f-559e-4dfd-abff-0205f367af7b",
+      "name": "Формирование CSV"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://77.67.89.207:8080/auth/token",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"username\": \"student18\",\n  \"password\": \"UA8}0qPKz-[+\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        368,
+        80
+      ],
+      "id": "6de09b57-eb4b-4004-ad4a-d89478a744a4",
+      "name": "Получение токена Report API"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://77.67.89.207:8080/report/csv",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/csv; charset=utf-8",
+        "body": "={{ $('Формирование CSV').first().json.csv }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        592,
+        80
+      ],
+      "id": "332587aa-c32f-4ada-a915-7ab02434cf43",
+      "name": "Отправка CSV-отчёта"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ручной запуск синхронизации": {
+      "main": [
+        [
+          {
+            "node": "Получение деталей из CMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получение деталей из CMS": {
+      "main": [
+        [
+          {
+            "node": "Сохранение деталей в SQLite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранение деталей в SQLite": {
+      "main": [
+        [
+          {
+            "node": "Получение истории из SQLite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получение истории из SQLite": {
+      "main": [
+        [
+          {
+            "node": "Формирование CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Формирование CSV": {
+      "main": [
+        [
+          {
+            "node": "Получение токена Report API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получение токена Report API": {
+      "main": [
+        [
+          {
+            "node": "Отправка CSV-отчёта",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "80a892da-4eb7-47f1-929e-c9d36df7574f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2896f0b7c62350216c20af4c8c6f9495c05f925c209dd0a65c78529af0d0c5c6"
+  },
+  "nodeGroups": [],
+  "id": "OwLc8k3KvfXA7aMp",
+  "tags": []
+}
